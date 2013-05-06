@@ -191,9 +191,6 @@ class jSignificantLocaleUrlsCompiler implements jISimpleCompiler{
             $parseContent = "<?php \n";
 
             foreach ($tag->children() as $tagname => $url) {
-
-#                echo "<p>$tagname</p>";
-
                 if ($tagname == 'locale' || $tagname == 'lang') {
 
                     $lvalue = (string)$url['name'] . '|';
@@ -229,11 +226,6 @@ class jSignificantLocaleUrlsCompiler implements jISimpleCompiler{
             jFile::write(jApp::tempPath('compiled/urlsig/'.$aSelector->file.'.'.rawurlencode($this->defaultUrl->entryPoint).'.entrypoint.php'),$parseContent);
         }
 
-#Debug::dump($this->createUrlInfos);
-#Debug::dump($this->createUrlContent);
-
-#exit('out');
-
         $this->createUrlContent .= ")) { return false; } else {\n";
         $this->createUrlContent .= $this->createUrlContentInc;
         $this->createUrlContent .= '$GLOBALS[\'SIGNIFICANT_CREATEURL\'] ='.var_export($this->createUrlInfos, true).";\nreturn true;";
@@ -244,29 +236,7 @@ class jSignificantLocaleUrlsCompiler implements jISimpleCompiler{
     }
 
     protected function parseUrl($tagname, $url, $optionalTrailingSlash, $lvalue = null) {
-/*
-        echo "<p>$tagname</p>";
-        if ($tagname == 'lang') {
-            $lvalue = '$l';
-        }
 
-        if ($tagname == 'locale') {
-            $lvalue = '$L';
-        }
-
-        if ($lvalue) {
-            $lvalue .= $url['value'];
-
-            echo "<h2>is locale ! " . $tagname . ' - ' . $url['value'] . "</h2>";
-            $url = $url->children();
-            $url = $url->url;
-            $tagname = 'url'; // <-- bizarre...
-Debug::dump(array($tagname, $url));
-            #list($tagname, $url) = each($url->children());
-#                    exit;
-        }
-echo "<p>::" . $tagname . ' - ' . $url['pathinfo'] . "</p>";
-*/
         $u = clone $this->defaultUrl;
         $u->module = (string)$url['module'];
 
