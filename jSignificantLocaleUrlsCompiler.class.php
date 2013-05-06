@@ -49,7 +49,7 @@ class significantUrlInfoParsing {
 * @package  jelix
 * @subpackage urls_engine
 */
-class jSignificantUrlsCompiler implements jISimpleCompiler{
+class jSignificantLocaleUrlsCompiler implements jISimpleCompiler{
 
     protected $requestType;
     protected $defaultUrl;
@@ -191,105 +191,31 @@ class jSignificantUrlsCompiler implements jISimpleCompiler{
             $parseContent = "<?php \n";
 
             foreach ($tag->children() as $tagname => $url) {
-                $u = clone $this->defaultUrl;
-                $u->module = (string)$url['module'];
 
-                if (isset($url['https'])) {
-                    $u->isHttps = (((string)$url['https']) == 'true');
-                }
+#                echo "<p>$tagname</p>";
 
-                if (isset($url['noentrypoint']) && ((string)$url['noentrypoint']) == 'true') {
-                    $u->entryPointUrl = '';
-                }
+                if ($tagname == 'locale' || $tagname == 'lang') {
 
-                if (isset($url['include'])) {
-                    $this->readInclude($url, $u);
-                    continue;
-                }
+                    $lvalue = (string)$url['name'] . '|';
 
-                // in the case of a non default entry point, if there is just an
-                // <url module="" />, so all actions of this module will be assigned
-                // to this entry point.
-                if (!$u->isDefault && !isset($url['action']) && !isset($url['handler'])) {
-                    $this->parseInfos[] = array($u->module, '', '/.*/', array(),
-                                                array(), array(), false,
-                                                ($this->checkHttps && $u->isHttps));
-                    $createUrlInfosDedicatedModules[$u->getFullSel()] = array(3, $u->entryPointUrl, $u->isHttps, true);
-                    continue;
-                }
-
-                $u->action = (string)$url['action'];
-
-                if (strpos($u->action, ':') === false) {
-                    $u->action = 'default:'.$u->action;
-                }
-
-                if (isset($url['actionoverride'])) {
-                    $u->actionOverride = preg_split("/[\s,]+/", (string)$url['actionoverride']);
-                    foreach ($u->actionOverride as &$each) {
-                        if (strpos($each, ':') === false) {
-                            $each = 'default:'.$each;
-                        }
+                    if ($tagname == 'lang') {
+                        $lvalue .= '$l';
                     }
-                }
 
-                // if there is an indicated handler, so, for the given module
-                // (and optional action), we should call the given handler to
-                // parse or create an url
-                if (isset($url['handler'])) {
-                    $this->newHandler($u, $url);
-                    continue;
-                }
-
-                // parse dynamic parameters
-                if (isset($url['pathinfo'])) {
-                    $path = (string)$url['pathinfo'];
-                    $regexppath = $this->extractDynamicParams($url, $path, $u);
-                }
-                else {
-                    $regexppath = '.*';
-                    $path = '';
-                }
-
-                $tempOptionalTrailingSlash = $optionalTrailingSlash;
-                if (isset($url['optionalTrailingSlash'])) {
-                    $tempOptionalTrailingSlash = ($url['optionalTrailingSlash'] == 'true');
-                }
-                if ($tempOptionalTrailingSlash) {
-                    if (substr($regexppath, -1) == '/') {
-                        $regexppath .= '?';
+                    if ($tagname == 'locale') {
+                        $lvalue .= '$L';
                     }
-                    else {
-                        $regexppath .= '\/?';
-                    }
-                }
 
-                // parse static parameters
-                foreach ($url->static as $var) {
-                    $t = "";
-                    if (isset($var['type'])) {
-                        switch ((string) $var['type']) {
-                            case 'lang': $t = '$l'; break;
-                            case 'locale': $t = '$L'; break;
-                            default:
-                                throw new Exception('urls definition: invalid type on a <static> element');
-                        }
-                    }
-                    $u->statics[(string)$var['name']] = $t . (string)$var['value'];
-                }
+                    $lvalue .= (string)$url['value'];
 
-                $this->parseInfos[] = array($u->module, $u->action, '!^'.$regexppath.'$!',
-                                            $u->params, $u->escapes, $u->statics,
-                                            $u->actionOverride, ($this->checkHttps && $u->isHttps));
-                $this->appendUrlInfo($u, $path, false);
-
-                if ($u->actionOverride) {
-                    foreach ($u->actionOverride as $ao) {
-                        $u->action = $ao;
-                        $this->appendUrlInfo($u, $path, true);
+                    foreach ($url->children() as $tagname => $url) {
+                        $this->parseUrl($tagname, $url, $optionalTrailingSlash, $lvalue);
                     }
+                } else {
+                    $this->parseUrl($tagname, $url, $optionalTrailingSlash);
                 }
             }
+
             $c = count($createUrlInfosDedicatedModules);
             foreach ($createUrlInfosDedicatedModules as $k=>$inf) {
                 if ($c > 1)
@@ -302,12 +228,151 @@ class jSignificantUrlsCompiler implements jISimpleCompiler{
 
             jFile::write(jApp::tempPath('compiled/urlsig/'.$aSelector->file.'.'.rawurlencode($this->defaultUrl->entryPoint).'.entrypoint.php'),$parseContent);
         }
+
+#Debug::dump($this->createUrlInfos);
+#Debug::dump($this->createUrlContent);
+
+#exit('out');
+
         $this->createUrlContent .= ")) { return false; } else {\n";
         $this->createUrlContent .= $this->createUrlContentInc;
         $this->createUrlContent .= '$GLOBALS[\'SIGNIFICANT_CREATEURL\'] ='.var_export($this->createUrlInfos, true).";\nreturn true;";
         $this->createUrlContent .= "\n}\n";
         jFile::write(jApp::tempPath('compiled/urlsig/'.$aSelector->file.'.creationinfos_15.php'), $this->createUrlContent);
+
         return true;
+    }
+
+    protected function parseUrl($tagname, $url, $optionalTrailingSlash, $lvalue = null) {
+/*
+        echo "<p>$tagname</p>";
+        if ($tagname == 'lang') {
+            $lvalue = '$l';
+        }
+
+        if ($tagname == 'locale') {
+            $lvalue = '$L';
+        }
+
+        if ($lvalue) {
+            $lvalue .= $url['value'];
+
+            echo "<h2>is locale ! " . $tagname . ' - ' . $url['value'] . "</h2>";
+            $url = $url->children();
+            $url = $url->url;
+            $tagname = 'url'; // <-- bizarre...
+Debug::dump(array($tagname, $url));
+            #list($tagname, $url) = each($url->children());
+#                    exit;
+        }
+echo "<p>::" . $tagname . ' - ' . $url['pathinfo'] . "</p>";
+*/
+        $u = clone $this->defaultUrl;
+        $u->module = (string)$url['module'];
+
+        if (isset($url['https'])) {
+            $u->isHttps = (((string)$url['https']) == 'true');
+        }
+
+        if (isset($url['noentrypoint']) && ((string)$url['noentrypoint']) == 'true') {
+            $u->entryPointUrl = '';
+        }
+
+        if (isset($url['include'])) {
+            $this->readInclude($url, $u, $lvalue);
+            //continue;
+            return;
+        }
+
+        // in the case of a non default entry point, if there is just an
+        // <url module="" />, so all actions of this module will be assigned
+        // to this entry point.
+        if (!$u->isDefault && !isset($url['action']) && !isset($url['handler'])) {
+            $this->parseInfos[] = array($u->module, '', '/.*/', array(),
+                                        array(), array(), false,
+                                        ($this->checkHttps && $u->isHttps));
+            $createUrlInfosDedicatedModules[$u->getFullSel()] = array(3, $u->entryPointUrl, $u->isHttps, true);
+            //continue;
+            return;
+        }
+
+        $u->action = (string)$url['action'];
+
+        if (strpos($u->action, ':') === false) {
+            $u->action = 'default:'.$u->action;
+        }
+
+        if (isset($url['actionoverride'])) {
+            $u->actionOverride = preg_split("/[\s,]+/", (string)$url['actionoverride']);
+            foreach ($u->actionOverride as &$each) {
+                if (strpos($each, ':') === false) {
+                    $each = 'default:'.$each;
+                }
+            }
+        }
+
+        // if there is an indicated handler, so, for the given module
+        // (and optional action), we should call the given handler to
+        // parse or create an url
+        if (isset($url['handler'])) {
+            $this->newHandler($u, $url);
+            //continue;
+            return;
+        }
+
+        // parse dynamic parameters
+        if (isset($url['pathinfo'])) {
+            $path = (string)$url['pathinfo'];
+            $regexppath = $this->extractDynamicParams($url, $path, $u);
+        }
+        else {
+            $regexppath = '.*';
+            $path = '';
+        }
+
+        $tempOptionalTrailingSlash = $optionalTrailingSlash;
+        if (isset($url['optionalTrailingSlash'])) {
+            $tempOptionalTrailingSlash = ($url['optionalTrailingSlash'] == 'true');
+        }
+        if ($tempOptionalTrailingSlash) {
+            if (substr($regexppath, -1) == '/') {
+                $regexppath .= '?';
+            }
+            else {
+                $regexppath .= '\/?';
+            }
+        }
+
+        if ($lvalue) {
+            list($lname, $lval) = explode('|', $lvalue);
+            $u->statics[$lname] = $lval;
+        }
+
+        // parse static parameters
+        foreach ($url->static as $var) {
+            $t = "";
+            if (isset($var['type'])) {
+                switch ((string) $var['type']) {
+                    case 'lang': $t = '$l'; break;
+                    case 'locale': $t = '$L'; break;
+                    default:
+                        throw new Exception('urls definition: invalid type on a <static> element');
+                }
+            }
+            $u->statics[(string)$var['name']] = $t . (string)$var['value'];
+        }
+
+        $this->parseInfos[] = array($u->module, $u->action, '!^'.$regexppath.'$!',
+                                    $u->params, $u->escapes, $u->statics,
+                                    $u->actionOverride, ($this->checkHttps && $u->isHttps));
+        $this->appendUrlInfo($u, $path, false);
+
+        if ($u->actionOverride) {
+            foreach ($u->actionOverride as $ao) {
+                $u->action = $ao;
+                $this->appendUrlInfo($u, $path, true);
+            }
+        }
     }
 
     protected function readProjectXml() {
@@ -512,7 +577,7 @@ class jSignificantUrlsCompiler implements jISimpleCompiler{
      * @param simpleXmlElement $url
      * @param significantUrlInfoParsing $uInfo
     */
-    protected function readInclude($url, $uInfo) {
+    protected function readInclude($url, $uInfo, $lvalue = null) {
 
         $file = (string)$url['include'];
         $pathinfo = '/'.trim((string)$url['pathinfo'], '/');
@@ -580,6 +645,11 @@ class jSignificantUrlsCompiler implements jISimpleCompiler{
                 else {
                     $regexppath .= '\/?';
                 }
+            }
+
+            if ($lvalue) {
+                list($lname, $lval) = explode('|', $lvalue);
+                $u->statics[$lname] = $lval;
             }
 
             // parse static parameters

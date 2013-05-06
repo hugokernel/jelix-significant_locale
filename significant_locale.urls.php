@@ -19,8 +19,8 @@ class jSelectorUrlCfgSig extends jSelectorCfg {
     public $type = 'urlcfgsig';
 
     public function getCompiler(){
-        require_once(__DIR__.'/jSignificantUrlsCompiler.class.php');
-        $o = new jSignificantUrlsCompiler();
+        require_once(__DIR__.'/jSignificantLocaleUrlsCompiler.class.php');
+        $o = new jSignificantLocaleUrlsCompiler();
         return $o;
     }
     public function getCompiledFilePath (){ return jApp::tempPath('compiled/urlsig/'.$this->file.'.creationinfos_15.php');}
@@ -84,7 +84,7 @@ interface jIUrlSignificantHandler {
  * @author      Laurent Jouanneau
  * @copyright   2005-2011 Laurent Jouanneau
  */
-class significantUrlEngine implements jIUrlEngine {
+class significant_localeUrlEngine implements jIUrlEngine {
 
     /**
     * data to create significant url
